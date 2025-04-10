@@ -96,11 +96,11 @@ def main():
             api_url = f"https://stage-www.squareyards.com/getlocalitydatafordesc/{city.lower()}/{locality.lower().replace(' ', '-')}"
             response = requests.get(api_url)
             # print(response.status_code)
-            if response.status_code != 200:
-                st.error(f"Failed to fetch locality data. Status: {response.status_code}")
-                st.text(f"URL tried: {api_url}")
-                st.text(response.text)
-                return
+            # if response.status_code != 200:
+            #     st.error(f"Failed to fetch locality data. Status: {response.status_code}")
+            #     st.text(f"URL tried: {api_url}")
+            #     st.text(response.text)
+            #     return
 
             # Generate the full description using the user-editable prompt
             full_description = create_content_locality_description(prompt, city, locality)
