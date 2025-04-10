@@ -1,0 +1,9 @@
+gunicorn
+uvicorn
+python-dotenv
+requests
+replicate
+pillow
+google-cloud-storage
+streamlit
+google-genai
