@@ -204,7 +204,7 @@ def main():
             with st.spinner("Generating listing description..."):
                 # Generate the listing description
                 listing_description = create_content_listing_description(prompt, metadata)
-                print(listing_description)
+                # print(listing_description)
                 listing_description  = listing_description.replace("```html","")
                 listing_description  = listing_description.replace("```","")
                 st.markdown(listing_description, unsafe_allow_html=True)
