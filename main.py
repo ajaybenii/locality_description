@@ -104,32 +104,36 @@ def main():
     # New prompt for listing description
     default_listing_prompt = """
     
+
+    
     You are a specialized assistant designed to generate concise and appealing property listing descriptions. When a user provides property metadata, you will:
     1. Format the output in clean, structured HTML that matches the specified template
     2. Provide the response directly without any introductory text or suggestions
-    3. Focus only on the most important amenities, keeping descriptions brief and relevant
-    
+    3. Focus only on the most important  amenities, keeping descriptions brief and relevant for buyers/renters
+    4. The response should be SEO-friendly
+    5. Cover all the points provided in the key-value pairs of the metadata.
+
     Output Requirements:
-    - Highlight key property features (size, configuration, furnishings, amenities like balcony or parking)
+    - Highlight key property features (price, size, configuration, furnishings, amenities)
     - Mention lifestyle benefits (spacious living, modern design, natural light)
     - Exclude city or locality details
     - Contain no special characters
     - Be presented either as 1-2 paragraphs 
     - Begin immediately with the HTML content (no introductory text or notes)
-    
+    - Choose either only 2 paragraphs OR both paragrapgh and bullet points(2-4 only) based on what best suits the metadata
+
     HTML Format Template:
     For paragraphs:
     <p>Property description paragraph with key features and benefits.</p>
     <p>Additional property description if needed.</p>
     
-    For bullet points:
+    For bullet points(bullets point should be a full meaningful sentence, not just a phrase):
     <ul>
     <li>Key property feature or benefit point</li>
     <li>Additional property feature or benefit point</li>
     </ul>
     
     Important Notes:
-    - Choose either paragraphs OR bullet points based on what best suits the metadata
     - Do not include any introductory or explanatory text in your response
     - Start directly with the HTML content
     - Ensure all HTML tags are properly closed and formatted
@@ -137,6 +141,7 @@ def main():
     - Keep the description concise, natural, and focused on property features and benefits
     
     Generate a property listing description based on the following metadata: {metadata}
+
 
 """
 #     default_listing_prompt = """
@@ -189,7 +194,9 @@ def main():
     else:
         # Input form for listing description
         with st.form(key='listing_form'):
-            metadata = st.text_input("Property Metadata (e.g., 3 BHK, 1500 sqft, furnished, balcony, parking)", "")
+            metadata = st.text_input('Property Metadata (e.g., "listingType": "Sale", "descKeywords": "Schools in vicinity,Peaceful Vicinity,Affordable,Vastu compliant,Prime Location", "totalPrice": "17000000", "availArea": "1501", "areaInSqft": 1501, "areaUOMId": "22", "propertyName": "Apartment", "cityName": "Kolkata", "localityName": "Hazra Road", "projectName": "Fort Oasis", "unitNo": "6", "Possession_Status": "Ready To Move", "Furnishing_Status": "Unfurnished", "Number_of_Rooms": 3, "Number_of_Bathroom": 3, "views": "Garden View", "coverdParking": 1, "floor_no": "2", "tower": "4", "total_floor": "9", "amenities": ["Badminton Court(s)", "Attached Market", "24 x 7 Security", "Balcony", "Visitors Parking", "ATMs", "View of Water", "View of Landmark", "Walk-in Closet", "Waste Disposal"])', "")
+            # metadata = st.text_input("property_data {"listingType": "Sale", "descKeywords": "Schools in vicinity,Peaceful Vicinity,Affordable,Vastu compliant,Prime Location", "totalPrice": "17000000", "availArea": "1501", "areaInSqft": 1501, "areaUOMId": "22", "propertyName": "Apartment", "cityName": "Kolkata", "localityName": "Hazra Road", "projectName": "Fort Oasis", "unitNo": "6", "Possession_Status": "Ready To Move", "Furnishing_Status": "Unfurnished", "Number_of_Rooms": 3, "Number_of_Bathroom": 3, "views": "Garden View", "coverdParking": 1, "floor_no": "2", "tower": "4", "total_floor": "9", "amenities": ["Badminton Court(s)", "Attached Market", "24 x 7 Security", "Balcony", "Visitors Parking", "ATMs", "View of Water", "View of Landmark", "Walk-in Closet", "Waste Disposal"]}')
+
             prompt = st.text_area("Edit Listing Prompt", default_listing_prompt, height=400)
             submit_button = st.form_submit_button(label='Generate Listing Description')
 
@@ -197,6 +204,9 @@ def main():
             with st.spinner("Generating listing description..."):
                 # Generate the listing description
                 listing_description = create_content_listing_description(prompt, metadata)
+                print(listing_description)
+                listing_description  = listing_description.replace("```html","")
+                listing_description  = listing_description.replace("```","")
                 st.markdown(listing_description, unsafe_allow_html=True)
 
 if __name__ == "__main__":
