@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 import os
 import streamlit as st
 import requests
+import pyperclip
+import re
 from google import genai
 from google.genai import types
 
@@ -20,15 +22,12 @@ gemini_client = genai.Client(
 
 gemini_tools = [types.Tool(google_search=types.GoogleSearch())]
 
-# Centralized content creation function for Gemini (Locality Description)
+# --- Locality Description Function ---
 def create_content_locality_description(prompt: str, city: str, locality: str) -> str:
     try:
-        # Preprocess city and locality for the URL
         city_lower = city.lower()
         locality_processed = locality.lower().replace(' ', '-')
         url = f"https://www.squareyards.com/getlocalitydatafordesc/{city_lower}/{locality_processed}"
-        
-        # Update the prompt with the preprocessed URL
         full_query = prompt.format(locality=locality, city=city, url=url)
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -45,10 +44,9 @@ def create_content_locality_description(prompt: str, city: str, locality: str) -
     except Exception as e:
         return f"Error generating content: {str(e)}"
 
-# New function for generating listing description
+# --- Listing Description Function ---
 def create_content_listing_description(prompt: str, metadata: str) -> str:
     try:
-        # Update the prompt with the metadata
         full_query = prompt.format(metadata=metadata)
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash-001",
@@ -60,14 +58,57 @@ def create_content_listing_description(prompt: str, metadata: str) -> str:
             )
         )
         content = response.text
+        content = content.replace("```html", "").replace("```", "")
         return content.replace("\n", "")
     except Exception as e:
         return f"Error generating listing description: {str(e)}"
 
-# Streamlit App
+# --- Translation Functions ---
+def get_project_data(project_id):
+    api_url = f"https://www.squareyards.com/project-data-for-ai/{project_id}"
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise ValueError(f"Failed to fetch data for project ID {project_id}. Status code: {response.status_code}")
+
+def translate_text(text: str, target_language: str) -> str:
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=f"""You are a professional translator specialized in real estate content.
+            Your task is to translate English text into {target_language}, preserving accuracy and domain relevance.
+
+            If the input is a key–value structure (such as JSON), translate only the values while keeping all keys unchanged.
+
+            Maintain the original structure and formatting in your response.
+
+            Do not skip any values — every translatable value must be translated.
+
+            Retain real estate–specific terms (e.g., "BHK", "Cr", "Possession") in English when appropriate.
+
+            Do not add explanations, comments, or extra output — return only the translated content.
+
+            Begin by translating the following English input to {target_language}:
+
+            "{text}"
+            """,
+            config=types.GenerateContentConfig(
+                max_output_tokens=3024,
+                temperature=1,
+            )
+        )
+        return response.text.strip().replace('"', '')
+    except Exception as e:
+        return f"Error translating text: {str(e)}"
+
+# --- Streamlit App ---
 def main():
-    st.title("Real Estate Description Generator")
-    st.write("Generate detailed locality or listing descriptions using Gemini AI")
+    st.title("Real Estate Content Generator & Translator")
+    st.write("Generate locality/listing descriptions or translate project data into Hindi/Marathi")
+
+    # Mode selection
+    mode = st.radio("Choose Functionality:", ["Locality Description", "Listing Description", "Text Translator"], index=0)
 
     # Default prompt for locality description
     default_locality_prompt = """
@@ -101,15 +142,12 @@ def main():
     </div>
     """
 
-    # New prompt for listing description
+    # Default prompt for listing description
     default_listing_prompt = """
-    
-
-    
     You are a specialized assistant designed to generate concise and appealing property listing descriptions. When a user provides property metadata, you will:
     1. Format the output in clean, structured HTML that matches the specified template
     2. Provide the response directly without any introductory text or suggestions
-    3. Focus only on the most important  amenities, keeping descriptions brief and relevant for buyers/renters
+    3. Focus only on the most important amenities, keeping descriptions brief and relevant for buyers/renters
     4. The response should be SEO-friendly
     5. Cover all the points provided in the key-value pairs of the metadata.
 
@@ -120,14 +158,14 @@ def main():
     - Contain no special characters
     - Be presented either as 1-2 paragraphs 
     - Begin immediately with the HTML content (no introductory text or notes)
-    - Choose either only 2 paragraphs OR both paragrapgh and bullet points(2-4 only) based on what best suits the metadata
+    - Choose either only 2 paragraphs OR both paragraph and bullet points (2-4 only) based on what best suits the metadata
 
     HTML Format Template:
     For paragraphs:
     <p>Property description paragraph with key features and benefits.</p>
     <p>Additional property description if needed.</p>
     
-    For bullet points(bullets point should be a full meaningful sentence, not just a phrase):
+    For bullet points (bullets point should be a full meaningful sentence, not just a phrase):
     <ul>
     <li>Key property feature or benefit point</li>
     <li>Additional property feature or benefit point</li>
@@ -141,37 +179,10 @@ def main():
     - Keep the description concise, natural, and focused on property features and benefits
     
     Generate a property listing description based on the following metadata: {metadata}
+    """
 
-
-"""
-#     default_listing_prompt = """
-#     Generate a concise and appealing property listing description based on the following metadata: {metadata}.
-#     The description should:
-#     - Highlight key property features (e.g., size, configuration, furnishings, amenities like balcony or parking).
-#     - Mention lifestyle benefits (e.g., spacious living, modern design, natural light).
-#     - Include a call-to-action (e.g., "Contact us to schedule a viewing!").
-#     - Exclude city or locality details.
-#     - Use simple, natural, and realistic language without embellishment.
-#     - Dont add any special character and please direct give response dont mention any suggestion line or note.
-# """
-    # ### **Response Format should be this:**
-    # The heading should be in <h2> heading </h2> and paragraph should be in <p> paragraph </p>, I use your response directly on my UI, so give response according to UI.
-    # <h2>Property Overview</h2>
-    # <p>[Description here]</p>
-    # <h2>Key Features</h2>
-    # <ul>
-    #     <li>[Feature 1]</li>
-    #     <li>[Feature 2]</li>
-    # </ul>
-    # <h2>Contact Us</h2>
-    # <p>[Call-to-action here]</p>"""
- 
-
-    # Selection for description type
-    description_type = st.radio("Select Description Type", ("Locality Description", "Listing Description"))
-
-    if description_type == "Locality Description":
-        # Input form for locality description
+    if mode == "Locality Description":
+        st.header("Locality Description Generator")
         with st.form(key='locality_form'):
             city = st.text_input("City", "")
             locality = st.text_input("Locality", "")
@@ -180,34 +191,81 @@ def main():
 
         if submit_button and city and locality:
             with st.spinner("Generating locality description..."):
-                # Fetch locality data
-                api_url = f"https://stage-www.squareyards.com/getlocalitydatafordesc/{city.lower()}/{locality.lower().replace(' ', '-')}"
+                api_url = f"https://www.squareyards.com/getlocalitydatafordesc/{city.lower()}/{locality.lower().replace(' ', '-')}"
                 response = requests.get(api_url)
                 if response.status_code != 200:
                     st.error("Failed to fetch locality data")
                     return
-
-                # Generate the locality description
                 full_description = create_content_locality_description(prompt, city, locality)
                 st.markdown(full_description, unsafe_allow_html=True)
 
-    else:
-        # Input form for listing description
+                if st.button("Copy Description to Clipboard"):
+                    pyperclip.copy(full_description)
+                    st.success("Description copied to clipboard!")
+                
+                st.download_button(
+                    label="Download Description",
+                    data=full_description,
+                    file_name=f"{locality}_{city}_description.html",
+                    mime="text/html"
+                )
+
+    elif mode == "Listing Description":
+        st.header("Listing Description Generator")
         with st.form(key='listing_form'):
             metadata = st.text_input('Property Metadata (e.g., "listingType": "Sale", "descKeywords": "Schools in vicinity,Peaceful Vicinity,Affordable,Vastu compliant,Prime Location", "totalPrice": "17000000", "availArea": "1501", "areaInSqft": 1501, "areaUOMId": "22", "propertyName": "Apartment", "cityName": "Kolkata", "localityName": "Hazra Road", "projectName": "Fort Oasis", "unitNo": "6", "Possession_Status": "Ready To Move", "Furnishing_Status": "Unfurnished", "Number_of_Rooms": 3, "Number_of_Bathroom": 3, "views": "Garden View", "coverdParking": 1, "floor_no": "2", "tower": "4", "total_floor": "9", "amenities": ["Badminton Court(s)", "Attached Market", "24 x 7 Security", "Balcony", "Visitors Parking", "ATMs", "View of Water", "View of Landmark", "Walk-in Closet", "Waste Disposal"])', "")
-            # metadata = st.text_input("property_data {"listingType": "Sale", "descKeywords": "Schools in vicinity,Peaceful Vicinity,Affordable,Vastu compliant,Prime Location", "totalPrice": "17000000", "availArea": "1501", "areaInSqft": 1501, "areaUOMId": "22", "propertyName": "Apartment", "cityName": "Kolkata", "localityName": "Hazra Road", "projectName": "Fort Oasis", "unitNo": "6", "Possession_Status": "Ready To Move", "Furnishing_Status": "Unfurnished", "Number_of_Rooms": 3, "Number_of_Bathroom": 3, "views": "Garden View", "coverdParking": 1, "floor_no": "2", "tower": "4", "total_floor": "9", "amenities": ["Badminton Court(s)", "Attached Market", "24 x 7 Security", "Balcony", "Visitors Parking", "ATMs", "View of Water", "View of Landmark", "Walk-in Closet", "Waste Disposal"]}')
-
             prompt = st.text_area("Edit Listing Prompt", default_listing_prompt, height=400)
             submit_button = st.form_submit_button(label='Generate Listing Description')
 
         if submit_button and metadata:
             with st.spinner("Generating listing description..."):
-                # Generate the listing description
                 listing_description = create_content_listing_description(prompt, metadata)
-                # print(listing_description)
-                listing_description  = listing_description.replace("```html","")
-                listing_description  = listing_description.replace("```","")
                 st.markdown(listing_description, unsafe_allow_html=True)
+
+                if st.button("Copy Description to Clipboard"):
+                    pyperclip.copy(listing_description)
+                    st.success("Description copied to clipboard!")
+                
+                st.download_button(
+                    label="Download Description",
+                    data=listing_description,
+                    file_name="listing_description.html",
+                    mime="text/html"
+                )
+
+    else:
+        st.header("Text Translator (English → Hindi/Marathi)")
+        language_option = st.selectbox("Select Target Language:", ["Hindi", "Marathi"])
+        target_lang_code = "hi" if language_option == "Hindi" else "mr"
+
+        project_id = st.text_input("Enter Project ID:", "308832")
+        
+        if st.button("Fetch and Translate"):
+            try:
+                input_json = get_project_data(project_id)
+                input_text = (input_json)
+                st.subheader("Extracted Data:")
+                st.write(input_text)
+                translated = translate_text(input_text, target_lang_code)
+                
+                st.subheader("Translated Text:")
+                st.write(translated)
+
+                if st.button("Copy to Clipboard"):
+                    pyperclip.copy(translated)
+                    st.success("Translated text copied to clipboard!")
+                
+                st.download_button(
+                    label="Download Translated Text",
+                    data=translated,
+                    file_name=f"translated_{project_id}_{target_lang_code}.txt",
+                    mime="text/plain"
+                )
+
+            except ValueError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"An error occurred during translation: {str(e)}")
 
 if __name__ == "__main__":
     main()
