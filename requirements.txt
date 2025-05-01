@@ -7,3 +7,4 @@ pillow
 google-cloud-storage
 streamlit
 google-genai
+pyperclip
