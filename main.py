@@ -44,10 +44,19 @@ def create_content_locality_description(prompt: str, city: str, locality: str) -
     except Exception as e:
         return f"Error generating content: {str(e)}"
 
+def create_content_listing_description_format():
+    font_list = [    
+                    "The response format should be flexible—either a single paragraph, format:(<p>.....</p>) or a mix of one paragraph with 2–3 meaningful bullet points,format:(<ul> <li>...</li></ul>), depending on what best suits the data.",
+                    "The response format should be flexible—either a single or double paragraph in this format (<p>.....</p>)",
+                    "The response format should be a single paragraph in this format (<p>.....</p>)" 
+                ]
+    selected_font = random.choice(font_list)
+    return selected_font
+    
 # --- Listing Description Function ---
 def create_content_listing_description(prompt: str, metadata: str) -> str:
     try:
-        full_query = prompt.format(metadata=metadata)
+        full_query = prompt.format(metadata=metadata,select_font=create_content_listing_description_format())
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents=full_query,
@@ -152,7 +161,7 @@ def main():
     - Exclude city or locality details.
     - Output response should be like human generated so no fancy or repetitive words.
     - Base the output strictly on the provided data
-    - The response format should be flexible—either a single paragraph(<p>.....</p>) or a mix of one paragraph with 2–3 meaningful bullet points(<ul> <li>...</li></ul>), depending on what best suits the data.
+    - {select_font}
 
     Important Notes:
     - Do not include any introductory or explanatory text in your response
