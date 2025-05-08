@@ -58,7 +58,7 @@ def create_content_listing_description(prompt: str, metadata: str) -> str:
             )
         )
         content = response.text
-        content = content.replace("```html", "").replace("```", "")
+        content = content.replace("```html", "").replace("```", "").replace("-"," ").replace("*","")
         return content.replace("\n", "")
     except Exception as e:
         return f"Error generating listing description: {str(e)}"
@@ -144,39 +144,20 @@ def main():
 
     # Default prompt for listing description
     default_listing_prompt = """
-    You are a specialized assistant designed to generate concise and appealing property listing descriptions. When a user provides property metadata, you will:
-    1. Format the output in clean, structured HTML that matches the specified template
-    2. Provide the response directly without any introductory text or suggestions
-    3. Focus only on the most important amenities, keeping descriptions brief and relevant for buyers/renters
-    4. The response should be SEO-friendly
-    5. Cover all the points provided in the key-value pairs of the metadata.
+    You are a specialized assistant designed to generate concise and appealing property listing descriptions for real estate. Based on the provided property metadata:
 
     Output Requirements:
-    - Highlight key property features (price, size, configuration, furnishings, amenities)
+    - Format the output in clean, structured HTML that matches the specified template
     - Mention lifestyle benefits (spacious living, modern design, natural light)
-    - Exclude city or locality details
-    - Contain no special characters
-    - Be presented either as 1-2 paragraphs 
-    - Begin immediately with the HTML content (no introductory text or notes)
-    - Choose either only 2 paragraphs OR both paragraph and bullet points (2-4 only) based on what best suits the metadata
+    - Exclude city or locality details.
+    - Output response should be like human generated so no fancy or repetitive words.
+    - Base the output strictly on the provided data
+    - The response format should be flexible—either a single paragraph(<p>.....</p>) or a mix of one paragraph with 2–3 meaningful bullet points(<ul> <li>...</li></ul>), depending on what best suits the data.
 
-    HTML Format Template:
-    For paragraphs:
-    <p>Property description paragraph with key features and benefits.</p>
-    <p>Additional property description if needed.</p>
-    
-    For bullet points (bullets point should be a full meaningful sentence, not just a phrase):
-    <ul>
-    <li>Key property feature or benefit point</li>
-    <li>Additional property feature or benefit point</li>
-    </ul>
-    
     Important Notes:
     - Do not include any introductory or explanatory text in your response
-    - Start directly with the HTML content
-    - Ensure all HTML tags are properly closed and formatted
-    - Do not add any suggestions, notes, or additional commentary
-    - Keep the description concise, natural, and focused on property features and benefits
+    - Direct return response, do not add any suggestions, notes, or additional commentary
+    - Keep the description human written like a beginner and simaple natural
     
     Generate a property listing description based on the following metadata: {metadata}
     """
