@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import random
 import streamlit as st
 import requests
 import pyperclip
