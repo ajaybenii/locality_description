@@ -45,6 +45,7 @@ def create_content_locality_description(prompt: str, city: str, locality: str) -
     except Exception as e:
         return f"Error generating content: {str(e)}"
 
+# --- Listing Description Function ---
 def create_content_listing_description_format():
     font_list = [    
                     "The response format should be flexible—either a single paragraph, format:(<p>.....</p>) or a mix of one paragraph with 2–3 meaningful bullet points,format:(<ul> <li>...</li></ul>), depending on what best suits the data.",
@@ -53,8 +54,7 @@ def create_content_listing_description_format():
                 ]
     selected_font = random.choice(font_list)
     return selected_font
-    
-# --- Listing Description Function ---
+
 def create_content_listing_description(prompt: str, metadata: str) -> str:
     try:
         full_query = prompt.format(metadata=metadata,select_font=create_content_listing_description_format())
@@ -68,8 +68,9 @@ def create_content_listing_description(prompt: str, metadata: str) -> str:
             )
         )
         content = response.text
-        content = content.replace("```html", "").replace("```", "").replace("-"," ").replace("*","")
-        return content.replace("\n", "")
+        content = content.replace("```html", "").replace("```", "").replace("-"," ").replace("*","").replace("`","").replace("\<p>","<p>").replace("\</p>","</p>").replace("\<ul>","<ul>").replace("\</ul>","</ul>")
+        # print(content)
+        return content
     except Exception as e:
         return f"Error generating listing description: {str(e)}"
 
@@ -82,32 +83,19 @@ def get_project_data(project_id):
     else:
         raise ValueError(f"Failed to fetch data for project ID {project_id}. Status code: {response.status_code}")
 
-def translate_text(text: str, target_language: str) -> str:
+
+def translate_text(text: str, target_language: str, prompt: str) -> str:
     try:
+        full_query = prompt.format(text=text, target_language=target_language)
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash-001",
-            contents=f"""You are a professional translator specialized in real estate content.
-            Your task is to translate English text into {target_language}, preserving accuracy and domain relevance.
-
-            If the input is a key–value structure (such as JSON), translate only the values while keeping all keys unchanged.
-
-            Maintain the original structure and formatting in your response.
-
-            Do not skip any values — every translatable value must be translated.
-
-            Retain real estate–specific terms (e.g., "BHK", "Cr", "Possession") in English when appropriate.
-
-            Do not add explanations, comments, or extra output — return only the translated content.
-
-            Begin by translating the following English input to {target_language}:
-
-            "{text}"
-            """,
+            model="gemini-2.0-flash",
+            contents=full_query,
             config=types.GenerateContentConfig(
                 max_output_tokens=3024,
                 temperature=1,
             )
         )
+        # response = (response).replace("-","")
         return response.text.strip().replace('"', '')
     except Exception as e:
         return f"Error translating text: {str(e)}"
@@ -151,8 +139,8 @@ def main():
         </div>
     </div>
     """
-
     # Default prompt for listing description
+    
     default_listing_prompt = """
     You are a specialized assistant designed to generate concise and appealing property listing descriptions for real estate. Based on the provided property metadata:
 
@@ -170,6 +158,26 @@ def main():
     - Keep the description human written like a beginner and simaple natural
     
     Generate a property listing description based on the following metadata: {metadata}
+    """
+
+    # Default prompt for text translation
+    default_translation_prompt = """
+    You are a professional translator specialized in real estate content.
+            Your task is to translate English text into {target_language}, preserving accuracy and domain relevance.
+
+            If the input is a key–value structure (such as JSON), translate only the values while keeping all keys unchanged.
+
+            Maintain the original structure and formatting in your response.
+
+            Do not skip any values — every translatable value must be translated.
+
+            Retain real estate–specific terms (e.g., "BHK", "Cr", "Possession") in English when appropriate.
+
+            Do not add explanations, comments, or extra output — return only the translated content.
+
+            Begin by translating the following English input to {target_language}:
+
+            "{text}"
     """
 
     if mode == "Locality Description":
@@ -207,10 +215,11 @@ def main():
             metadata = st.text_input('Property Metadata (e.g., "listingType": "Sale", "descKeywords": "Schools in vicinity,Peaceful Vicinity,Affordable,Vastu compliant,Prime Location", "totalPrice": "17000000", "availArea": "1501", "areaInSqft": 1501, "areaUOMId": "22", "propertyName": "Apartment", "cityName": "Kolkata", "localityName": "Hazra Road", "projectName": "Fort Oasis", "unitNo": "6", "Possession_Status": "Ready To Move", "Furnishing_Status": "Unfurnished", "Number_of_Rooms": 3, "Number_of_Bathroom": 3, "views": "Garden View", "coverdParking": 1, "floor_no": "2", "tower": "4", "total_floor": "9", "amenities": ["Badminton Court(s)", "Attached Market", "24 x 7 Security", "Balcony", "Visitors Parking", "ATMs", "View of Water", "View of Landmark", "Walk-in Closet", "Waste Disposal"])', "")
             prompt = st.text_area("Edit Listing Prompt", default_listing_prompt, height=400)
             submit_button = st.form_submit_button(label='Generate Listing Description')
-
+            # selected_font = create_content_listing_description_format()
         if submit_button and metadata:
             with st.spinner("Generating listing description..."):
                 listing_description = create_content_listing_description(prompt, metadata)
+                print(listing_description)
                 st.markdown(listing_description, unsafe_allow_html=True)
 
                 if st.button("Copy Description to Clipboard"):
@@ -226,37 +235,59 @@ def main():
 
     else:
         st.header("Text Translator (English → Hindi/Marathi)")
-        language_option = st.selectbox("Select Target Language:", ["Hindi", "Marathi"])
-        target_lang_code = "hi" if language_option == "Hindi" else "mr"
+        with st.form(key='translation_form'):
+            language_option = st.selectbox("Select Target Language:", ["Hindi", "Marathi"])
+            target_lang_code = "hi" if language_option == "Hindi" else "mr"
+            
+            # Input mode selection
+            input_mode = st.radio("Choose Input Method:", ["Fetch Data from URL", "Enter Text Manually"], index=0)
+            
+            # Inputs based on mode
+            project_id = None
+            manual_text = None
+            if input_mode == "Fetch Data from URL":
+                project_id = st.text_input("Enter Project ID:", "308832")
+            else:
+                manual_text = st.text_area("Enter Text to Translate:", "", height=200)
+            
+            prompt = st.text_area("Edit Translation Prompt", default_translation_prompt, height=400)
+            submit_button = st.form_submit_button(label='Translate')
 
-        project_id = st.text_input("Enter Project ID:", "308832")
-        
-        if st.button("Fetch and Translate"):
-            try:
-                input_json = get_project_data(project_id)
-                input_text = (input_json)
-                st.subheader("Extracted Data:")
-                st.write(input_text)
-                translated = translate_text(input_text, target_lang_code)
-                
-                st.subheader("Translated Text:")
-                st.write(translated)
+            if submit_button:
+                with st.spinner("Translating text..."):
+                    try:
+                        if input_mode == "Fetch Data from URL" and project_id:
+                            input_data = get_project_data(project_id)
+                            st.subheader(f"Extracted Data from URL - https://www.squareyards.com/project-data-for-ai/{project_id}:")
+                            st.write(input_data)
+                        elif input_mode == "Enter Text Manually" and manual_text:
+                            input_data = manual_text
+                            st.subheader("Input Text:")
+                            st.write(input_data)
+                        else:
+                            st.error("Please provide a Project ID or manual text.")
+                            return
 
-                if st.button("Copy to Clipboard"):
-                    pyperclip.copy(translated)
-                    st.success("Translated text copied to clipboard!")
-                
-                st.download_button(
-                    label="Download Translated Text",
-                    data=translated,
-                    file_name=f"translated_{project_id}_{target_lang_code}.txt",
-                    mime="text/plain"
-                )
+                        translated = translate_text(input_data, target_lang_code, prompt)
+                        st.subheader("Translated Text:")
+                        st.write(translated)
 
-            except ValueError as e:
-                st.error(str(e))
-            except Exception as e:
-                st.error(f"An error occurred during translation: {str(e)}")
+                        if st.button("Copy to Clipboard"):
+                            pyperclip.copy(translated)
+                            st.success("Translated text copied to clipboard!")
+                        
+                        file_name = f"translated_{project_id if project_id else 'manual'}_{target_lang_code}.txt"
+                        st.download_button(
+                            label="Download Translated Text",
+                            data=translated,
+                            file_name=file_name,
+                            mime="text/plain"
+                        )
+
+                    except ValueError as e:
+                        st.error(str(e))
+                    except Exception as e:
+                        st.error(f"An error occurred during translation: {str(e)}")
 
 if __name__ == "__main__":
     main()
